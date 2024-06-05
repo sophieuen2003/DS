@@ -40,48 +40,232 @@
 本專案旨在開發一個智能寶寶監控系統。<br>
 目標利用影像辨識辨別寶寶狀態，同時抓取即時的溫濕度資訊並做出相對應控制電器的動作。最後使用Line Bot應用程式回應用戶的訊息並使用AI提供建議。
 
-### 需求
+### 控制燈泡開關(這裡以11為例-共6顆燈泡)
 ```bash
-- requests
-- drive
-- from IPython.display import display, Javascript, Image
-- from google.colab.output import eval_js
-- from base64 import b64decode, b64encode
-- cv2
-- import numpy as np
-- import PIL
-- import io
-- import html
-- import time
-- gspread
-- from google.oauth2.service_account import Credentials
-- from datetime import datetime
-- from zoneinfo import ZoneInfo
-- getpass
-- from pyngrok import ngrok, conf
-- from linebot import LineBotApi, WebhookHandler
-- from linebot.exceptions import InvalidSignatureError
-- from linebot.models import MessageEvent, TextMessage, TextSendMessage, StickerSendMessage, ImageSendMessage, LocationSendMessage
-- line-bot-sdk
-```
-### 安裝
+import requests
+# 11 on
+def turn_11_on():
+  # Turn light on
+  url = 'http://211.21.113.190:8155/api/webhook/-hFNoCcZKB31gtiZzhIabeI0d'
+  headers = {
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI4YWM0MDEzODIwNDU0MDE0ODdjNzIwZTc2ZDBmYzdjYSIsImlhdCI6MTY5ODgwNzExNSwiZXhwIjoyMDE0MTY3MTE1fQ.7KaCwPUcjAr_zne04qili2fwQO1QoWTPzsmV1v_LLIc'
+    }
 
-1. 安裝所需套件：
+  response = requests.post(url, headers=headers)
+  return response.text
+
+response_text_on = turn_11_on()  # 開啟第 11 盞燈
+print(response_text_on)
+
+# 11 off
+def turn_11_off():
+  # Turn light off
+  url = 'http://211.21.113.190:8155/api/webhook/-qtfn4apfmywr78fHHNZYiclU'
+  headers = {
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiI4YWM0MDEzODIwNDU0MDE0ODdjNzIwZTc2ZDBmYzdjYSIsImlhdCI6MTY5ODgwNzExNSwiZXhwIjoyMDE0MTY3MTE1fQ.7KaCwPUcjAr_zne04qili2fwQO1QoWTPzsmV1v_LLIc'
+    }
+
+  response = requests.post(url, headers=headers)
+  return response.text
+
+response_text_off = turn_11_off()  # 關閉第 11 盞燈
+print(response_text_off)
+```
+### 函式
+
+1. 情緒判斷：
+```bash  
+API_URL_1 = "https://api-inference.huggingface.co/models/trpakov/vit-face-expression"
+headers = {"Authorization": "Bearer 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"}
+
+def sad(filename):
+  with open(filename, "rb") as f:
+      data = f.read()
+  response = requests.post(API_URL_1, headers=headers, data=data)
+  return response.json()
+```
+
+2. 眼睛睜合：
+```bash  
+API_URL_2 = "https://api-inference.huggingface.co/models/dima806/closed_eyes_image_detection"
+headers = {"Authorization": "Bearer hf_hf_MXjrVmNcgRCEDEeveDNuQKofzCVqTSztxb"}
+
+def eyes(filename):
+  with open(filename, "rb") as f:
+      data = f.read()
+  response = requests.post(API_URL_2, headers=headers, data=data)
+  return response.json()
+```
+
+3. 臉部覆蓋：
+```bash  
+API_URL_3 = "https://api-inference.huggingface.co/models/AliGhiasvand86/gisha_coverd_uncoverd_face"
+headers = {"Authorization": "Bearer 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"}
+
+def face(filename):
+  with open(filename, "rb") as f:
+      data = f.read()
+  response = requests.post(API_URL_3, headers=headers, data=data)
+  return response.json()
+```
+
+
+4. 串接LLM
 ```bash
-    pip install Flask pyngrok line-bot-sdk requests
-    
-    pip install opencv-python
+import requests
 
-    pip install fastapi
+API_URL_LLM = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct"
+headers = {"Authorization": "Bearer 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"}
 
-    pip install line-bot-sdk
+def LLM(payload):
+    try:
+        response = requests.post(API_URL_LLM, headers=headers, json=payload)
+        response.raise_for_status()  # 檢查請求是否成功
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP請求失敗: {e}")
+        return None
 
-    pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
-
-    pip install pyngrok
+    try:
+        return response.json()
+    except requests.exceptions.JSONDecodeError as e:
+        print(f"JSON解析失敗: {e}")
+        return None
+# https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct LLM使用的模組
 ```
 
-2. 確保您已經擁有 Goole API及Line Bot 的存取權杖和密鑰，並將其替換至 access_token 和 channel_secret 變數中。
+5. 取得並判斷辨識結果
+```bash
+def checkCry(filename):
+    emotion_probabilities = sad(filename)
+    highest_emotion = max(emotion_probabilities, key=lambda x: x['score'])
+    if highest_emotion['label'] == 'sad':
+        return 1 # 傷心
+    else:
+        return 0 # 不傷心
+
+def checkEyes(filename):
+    result = eyes(filename)
+    close_eye_probability = 0
+    open_eye_probability = 0
+    for prediction in result:
+        if prediction["label"] == "closeEye":
+            close_eye_probability = prediction["score"]
+        elif prediction["label"] == "openEye":
+            open_eye_probability = prediction["score"]
+
+    if close_eye_probability > open_eye_probability:
+        return 1 # 閉眼
+    else:
+        return 0
+
+
+def checkFace(filename):
+    result = face(filename)
+    uncovered_probability = 0
+    covered_probability = 0
+    for prediction in result:
+        if prediction["label"] == "uncovered":
+            uncovered_probability = prediction["score"]
+        elif prediction["label"] == "covered":
+            covered_probability = prediction["score"]
+
+    if covered_probability > uncovered_probability:
+        return 1 # 臉被遮住
+    else:
+        return 0
+```
+
+### 儲存資料到Google sheet
+### Server function  只要呼叫這個function就會開始運作
+```
+# function to convert the JavaScript object into an OpenCV image
+def js_to_image(js_reply):
+  """
+  Params:
+          js_reply: JavaScript object containing image from webcam
+  Returns:
+          img: OpenCV BGR image
+  """
+  # decode base64 image
+  image_bytes = b64decode(js_reply.split(',')[1])
+  # convert bytes to numpy array
+  jpg_as_np = np.frombuffer(image_bytes, dtype=np.uint8)
+  # decode numpy array into OpenCV BGR image
+  img = cv2.imdecode(jpg_as_np, flags=1)
+
+  return img
+
+# function to convert OpenCV Rectangle bounding box image into base64 byte string to be overlayed on video stream
+def bbox_to_bytes(bbox_array):
+  """
+  Params:
+          bbox_array: Numpy array (pixels) containing rectangle to overlay on video stream.
+  Returns:
+        bytes: Base64 image byte string
+  """
+  # convert array into PIL image
+  bbox_PIL = PIL.Image.fromarray(bbox_array, 'RGBA')
+  iobuf = io.BytesIO()
+  # format bbox into png for return
+  bbox_PIL.save(iobuf, format='png')
+  # format return string
+  bbox_bytes = 'data:image/png;base64,{}'.format((str(b64encode(iobuf.getvalue()), 'utf-8')))
+
+  return bbox_bytes
+```
+```
+face_cascade = cv2.CascadeClassifier(cv2.samples.findFile(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'))
+def take_photo(filename='photo.jpg', quality=0.8):
+  js = Javascript('''
+    async function takePhoto(quality) {
+      const div = document.createElement('div');
+      const capture = document.createElement('button');
+      capture.textContent = 'Capture';
+      div.appendChild(capture);
+
+      const video = document.createElement('video');
+      video.style.display = 'block';
+      const stream = await navigator.mediaDevices.getUserMedia({video: true});
+
+      document.body.appendChild(div);
+      div.appendChild(video);
+      video.srcObject = stream;
+      await video.play();
+
+      // Resize the output to fit the video element.
+      google.colab.output.setIframeHeight(document.documentElement.scrollHeight, true);
+
+      // Wait for Capture to be clicked.
+      await new Promise((resolve) => capture.onclick = resolve);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      stream.getVideoTracks()[0].stop();
+      div.remove();
+      return canvas.toDataURL('image/jpeg', quality);
+    }
+    ''')
+  display(js)
+
+  # get photo data
+  data = eval_js('takePhoto({})'.format(quality))
+  # get OpenCV format image
+  img = js_to_image(data)
+  # grayscale img
+  gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+  print(gray.shape)
+  # get face bounding box coordinates using Haar Cascade
+  faces = face_cascade.detectMultiScale(gray)
+  # draw face bounding box on image
+  for (x,y,w,h) in faces:
+      img = cv2.rectangle(img,(x,y),(x+w,y+h),(255,0,0),2)
+  # save image
+  cv2.imwrite(filename, img)
+
+  return filename
+```
 
 ### 使用
 
