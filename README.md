@@ -35,12 +35,12 @@
 **Final Project**
 
 專題名稱：Infant Caregiver<br>
-專題連結：[ds_LLM_babyboss](https://colab.research.google.com/drive/1BF-IPPRmj68i8540-3rY8B-4iQWJ2vdc#scrollTo=z93fyaqfsxoL)
+專題連結 (完整程式碼)：[ds_LLM_babyboss](https://colab.research.google.com/drive/1BF-IPPRmj68i8540-3rY8B-4iQWJ2vdc#scrollTo=z93fyaqfsxoL)
 
 本專案旨在開發一個智能寶寶監控系統。<br>
 目標利用影像辨識辨別寶寶狀態，同時抓取即時的溫濕度資訊並做出相對應控制電器的動作。最後使用Line Bot應用程式回應用戶的訊息並使用AI提供建議。
 
-### 控制燈泡開關(這裡以11為例-共6顆燈泡)
+### 控制燈泡開關 (這裡以11號燈泡為例-共6顆燈泡)
 ```bash
 import requests
 # 11 on
@@ -133,7 +133,7 @@ def LLM(payload):
 # https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct LLM使用的模組
 ```
 
-5. 取得並判斷辨識結果
+5. 定義判斷後的結果
 ```bash
 def checkCry(filename):
     emotion_probabilities = sad(filename)
@@ -267,43 +267,287 @@ def take_photo(filename='photo.jpg', quality=0.8):
   return filename
 ```
 
-### 使用
+拍攝照片並儲存
+```
+try:
+  filename = take_photo('photo.jpg')
+  print('Saved to {}'.format(filename))
 
-1. 啟動應用程式：
+  # Show the image which was just taken.
+  display(Image(filename))
+except Exception as err:
+  # Errors will be thrown if the user does not have a webcam or if they do not
+  # grant the page permission to access it.
+  print(str(err))
+```
+### HW3 外部資訊 
+串聯外部API，獲得使用者的經緯度後，去抓當地的天氣資料，並根據溫度判斷是否要開冷氣
 
+5. 定義判斷後的結果
 ```bash
-    python ds_llm_babyboss.py
-``` 
+import requests
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-2. 應用程式將會使用 ngrok 建立一個公共 URL。請記住這個 URL，並將其設定在您的 Line Bot Webhook 設定中。
+# 假設我們有一個分析影像的函數
+def analyze_image(img):
+    # 在此處新增圖像分析程式碼並返回適當的狀態
+    # 範例回傳值
+    if checkFace(img) == 0:
+        if checkCry(img) == 0:
+          if checkEyes(img) == 0:
+            return "The baby is awake!"
+          elif checkEyes(img) == 1:
+            return "The baby is sleeping!"
+        elif checkCry(img) == 1:
+          return "The baby is crying!"
+    elif checkFace(img) == 1:
+      return "Warning!The baby's face is covered!"
 
-### 功能
+def kelvin_to_celsius(kelvin):
+    return kelvin - 273.15
 
-- **影像辨識**：使用 Hugging Face 的模組，透過影像辨識擷取當前寶寶狀態，並透過亮起的燈號，表示控制對應的電器 ( 以電燈作為代替 )
+def get_weather_by_coordinates(api_key, lat, lon):
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}"
+    response = requests.get(url)
 
-     嬰兒哭泣：Light 11 ( 以亮燈表示響起溫和的警報聲 - **提醒照顧者小孩醒了** )
-  
-     嬰兒睡覺：Light 12 ( 以亮燈表示關閉房間電燈、播放搖籃曲及搖嬰兒的搖籃 - **幫助小孩更好的入眠** )
+    if response.status_code == 200:
+        data = response.json()
+        return data
+    else:
+        return {"error": f"Failed to retrieve data. Status code: {response.status_code}"}
 
-     嬰兒起床：Light 13 ( 以亮燈表示開啟房間電燈及窗簾， - **提醒照顧者小孩已經醒了** )
-  
-     嬰兒面部朝下：Light 14 (以亮燈表示響起危險的警報聲 - **狀況十分危急，需要立即處理**  )<br>
-  
-- **溫濕度**：抓取openweathermap以獲取當前地點的溫度和濕度資訊，若 擷取到的溫度 ≥ 28ﾟC 就開啟冷氣
+def write_to_google_sheets(sheet_id, row_data):
+    scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
+    creds = Credentials.from_service_account_file('/content/llmtwins.json', scopes=scope)
+    client = gspread.authorize(creds)
 
-     溫度 ≥ 28ﾟC：Light 15 (以亮燈表示開冷氣 )
-  
-- **Line Bot**：串接LLM整理AI給的建議，當使用者在聊天室傳送 "寶寶狀態" ，可以獲取寶寶的當前狀態；傳送 "建議" 可以獲取AI的建議。
+    sheet = client.open_by_key(sheet_id).sheet1
+
+    # 清空現有數據
+    #sheet.clear()
+
+    # 新增標題行
+    #headers = ["日期", "時間", "寶寶狀態", "溫度 (°C)", "濕度 (%)", "城市", "天氣描述"]
+    #sheet.append_row(headers)
+
+    # 新增數據
+    sheet.append_row(row_data)
+
+def store_data(api_key, lat, lon, sheet_id, img):
+    # 取得影像分析結果
+    status = analyze_image(img)
+
+    # 取得天氣資訊
+    weather_data = get_weather_by_coordinates(api_key, lat, lon)
+
+    # 檢查是否有錯誤
+    if "error" in weather_data:
+        print(weather_data["error"])
+        return
+
+    temperature_celsius = round(kelvin_to_celsius(weather_data["main"]["temp"]), 1)
+    humidity = weather_data["main"]["humidity"]
+    city = weather_data["name"]
+    description = weather_data["weather"][0]["description"]
+
+    tz = ZoneInfo("Asia/Taipei")
+
+    # 判斷是否要開冷氣
+    if temperature_celsius >= 28:
+      turn_15_on()
+      AC = "On"
+    elif temperature_celsius < 28:
+      turn_15_off()
+      AC = "Off"
+
+    payload = {
+    "inputs": f"I am a babysitter, if I found the situation that {analyze_image(img)} How can I solve? Don't repeat my question.Just give me the adivces.\n"
+    }
+    suggestion = LLM(payload)
+    print(suggestion)
+    if isinstance(suggestion, list) and len(suggestion) > 0 and 'generated_text' in suggestion[0]:
+        generated_text = suggestion[0]['generated_text']
+    else:
+        generated_text = "No suggestion available"
+
+    # 提取建議部分
+    advice = generated_text.split('\n', 1)[-1].strip()
+
+    # 取得當前日期和時間
+    today_date = datetime.now(tz).strftime('%Y-%m-%d')
+    today_time = datetime.now(tz).strftime('%H:%M:%S')
+
+    # 準備寫入 Google Sheets 的數據
+    row_data = [today_date, today_time, status, temperature_celsius, humidity, city, description, AC, advice]
+
+    # 將資料寫入 Google Sheets
+    write_to_google_sheets(sheet_id, row_data)
+```
+
+依據HuggingFace回傳的判斷結果及openweathermap抓到溫度和濕度資訊做出相對應的動作
+```
+import time
+
+# 替換為你的 API Key
+api_key = "b55132e7d0d008aa945b18e4cd2f5a02"
+
+# 縮寫經緯度
+latitude = 25.027383
+longitude = 121.529965
+
+# Google Sheet ID
+sheet_id = "1UabozEXhPsifoI15OqkWUJ-6ljlQmnaHZJDHYVvHTA0"
+
+# 呼叫函數處理數據
+def start():
+    global img
+    img = '/content/photo.jpg'
+    checkFace(img)
+    checkCry(img)
+    checkEyes(img)
+    time.sleep(3)
+    while True:
+      store_data(api_key, latitude, longitude, sheet_id, img)
+      if checkFace(img) == 0:
+        turn_14_off()
+        if checkCry(img) == 0:
+          turn_11_off()
+          if checkEyes(img) == 0:
+            turn_13_on()
+            break
+          elif checkEyes(img) == 1:
+            turn_12_on()
+            break
+        elif checkCry(img) == 1:
+          turn_11_on()
+          break
+      elif checkFace(img) == 1:
+          turn_14_on()
+          break
+```
+執行程式
+```
+start()
+```
+### HW4 Line bot
+```
+import gspread
+from google.oauth2.service_account import Credentials
+
+def getBaby():
+  scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
+
+  creds = Credentials.from_service_account_file('/content/llmtwins.json', scopes=scope)
+  client = gspread.authorize(creds)
+
+  sheet_id = "1UabozEXhPsifoI15OqkWUJ-6ljlQmnaHZJDHYVvHTA0"
+  sheet = client.open_by_key(sheet_id).sheet1
+  # 取得整張表的數據
+  all_data = sheet.get_all_values()
+
+  last_non_empty_row = None
+  for row in all_data[1:]:  # 跳過標題行
+      if row[2]:  # C列是第3列（索引為2）
+          last_non_empty_row = row[2]
+  return last_non_empty_row
+
+def getAdvice():
+
+  scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.file']
+
+  creds = Credentials.from_service_account_file('/content/llmtwins.json', scopes=scope)
+  client = gspread.authorize(creds)
+
+  sheet_id = "1UabozEXhPsifoI15OqkWUJ-6ljlQmnaHZJDHYVvHTA0"
+  sheet = client.open_by_key(sheet_id).sheet1
+  # 取得整張表的數據
+  all_data = sheet.get_all_values()
+
+  last_non_empty_row = None
+  for row in all_data[1:]:  # 跳過標題行
+      if row[8]:  # I列是第9列（索引為8）
+          last_non_empty_row = row[8]
+  return last_non_empty_row
+```
+```
+from google.colab import drive
+drive.mount('/content/drive', force_remount=True)
+
+!mkdir -p /drive
+#umount /drive
+!mount --bind /content/drive/My\ Drive /drive
+!mkdir -p /drive/ngrok-ssh
+!mkdir -p ~/.ssh
+```
+```
+import getpass
+
+from pyngrok import ngrok, conf
+
+print("Enter your authtoken, which can be copied from https://dashboard.ngrok.com/auth")
+conf.get_default().auth_token = getpass.getpass()
+
+# Open a TCP ngrok tunnel to the SSH server
+connection_string = ngrok.connect("22", "tcp").public_url
+
+ssh_url, port = connection_string.strip("tcp://").split(":")
+print(f" * ngrok tunnel available, access with `ssh root@{ssh_url} -p{port}`")
+```
+
+```
+from flask import Flask, request
+from pyngrok import ngrok   # Colab 環境需要，本機環境不需要
+import json, time, requests
+
+# 載入 LINE Message API 相關函式庫
+from linebot import LineBotApi, WebhookHandler
+from linebot.exceptions import InvalidSignatureError
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, StickerSendMessage, ImageSendMessage, LocationSendMessage
 
 
-### 結構
-- 各組功能funciton定義
-- Server function - 呼叫這個function就會開始運作
-- 影像辨識
-- 抓取地點、氣溫、濕度，並根據溫度自動開關空調
-- start()
-- 儲存資料到Google sheet
-- 根據接收到的訊息，決定回應的內容並使用 Line Bot API 回應用戶。
+app = Flask(__name__)
+
+# Colab 環境需要下面這三行，本機環境不需要
+port = "5000"
+public_url = ngrok.connect(port).public_url
+print(f" * ngrok tunnel \"{public_url}\" -> \"http://127.0.0.1:{port}\" ")
+
+access_token = 'MyQEPwE3fRdpUtTDusHkaeW4E2gvQFvEAqGG+XcEmYUAAJD4LD7ohZ0v0sfl7NVkQ6BNbctuiKZ1pGlHD0eG84SadNHkB8HF+XGP5rxlLEfP+69UaOMfWxcVBeS0PEwsDpL6VXRPNsezhfyuMO5XRwdB04t89/1O/w1cDnyilFU='
+channel_secret = '69ad2b3b47650aec61e4d53c1814f1c8'
+
+@app.route("/", methods=['POST'])
+def linebot():
+    body = request.get_data(as_text=True)                    # 取得收到的訊息內容
+    try:
+        line_bot_api = LineBotApi(access_token)     # 確認 token 是否正確
+        handler = WebhookHandler(channel_secret)    # 確認 secret 是否正確
+        signature = request.headers['X-Line-Signature']             # 加入回傳的 headers
+        handler.handle(body, signature)      # 綁定訊息回傳的相關資訊
+        json_data = json.loads(body)         # 轉換內容為 json 格式
+        reply_token = json_data['events'][0]['replyToken']    # 取得回傳訊息的 Token ( reply message 使用 )
+        user_id = json_data['events'][0]['source']['userId']  # 取得使用者 ID ( push message 使用 )
+        print(json_data)
+        msg = json_data['events'][0]['message']['text']                 # 印出內容
+        type = json_data['events'][0]['message']['type']
+        if type == 'text':
+            if msg == "寶寶狀態":
+              text = json_data['events'][0]['message']['text']
+              text_message = TextSendMessage(text=getBaby())
+              line_bot_api.reply_message(reply_token,text_message)
+            elif msg == "建議":
+              text = json_data['events'][0]['message']['text']
+              text_message = TextSendMessage(text=getAdvice())
+              line_bot_api.reply_message(reply_token,text_message)
+    except Exception as e:
+        print(e)
+    return 'OK'                 # 驗證 Webhook 使用，不能省略
+
+if __name__ == "__main__":
+    app.run()
+```
 
 ### 授權
 
