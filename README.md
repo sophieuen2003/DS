@@ -175,9 +175,10 @@ def checkFace(filename):
         return 0
 ```
 
-### 儲存資料到Google sheet
-### Server function  只要呼叫這個function就會開始運作
-```
+### Server function 
+
+1. 設定拍照參數
+```bash
 # function to convert the JavaScript object into an OpenCV image
 def js_to_image(js_reply):
   """
@@ -213,7 +214,9 @@ def bbox_to_bytes(bbox_array):
 
   return bbox_bytes
 ```
-```
+
+2.
+```bash
 face_cascade = cv2.CascadeClassifier(cv2.samples.findFile(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'))
 def take_photo(filename='photo.jpg', quality=0.8):
   js = Javascript('''
@@ -267,8 +270,8 @@ def take_photo(filename='photo.jpg', quality=0.8):
   return filename
 ```
 
-拍攝照片並儲存
-```
+3.儲存拍攝照片
+```bash
 try:
   filename = take_photo('photo.jpg')
   print('Saved to {}'.format(filename))
@@ -280,10 +283,9 @@ except Exception as err:
   # grant the page permission to access it.
   print(str(err))
 ```
+
 ### HW3 外部資訊 
 串聯外部API，獲得使用者的經緯度後，去抓當地的天氣資料，並根據溫度判斷是否要開冷氣
-
-5. 定義判斷後的結果
 ```bash
 import requests
 import gspread
@@ -388,7 +390,7 @@ def store_data(api_key, lat, lon, sheet_id, img):
 ```
 
 依據HuggingFace回傳的判斷結果及openweathermap抓到溫度和濕度資訊做出相對應的動作
-```
+```bash
 import time
 
 # 替換為你的 API Key
@@ -428,12 +430,14 @@ def start():
           turn_14_on()
           break
 ```
+
 執行程式
-```
+```bash
 start()
 ```
+
 ### HW4 Line bot
-```
+```bash
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -472,7 +476,7 @@ def getAdvice():
           last_non_empty_row = row[8]
   return last_non_empty_row
 ```
-```
+```bash
 from google.colab import drive
 drive.mount('/content/drive', force_remount=True)
 
@@ -482,7 +486,8 @@ drive.mount('/content/drive', force_remount=True)
 !mkdir -p /drive/ngrok-ssh
 !mkdir -p ~/.ssh
 ```
-```
+
+```bash
 import getpass
 
 from pyngrok import ngrok, conf
@@ -497,7 +502,7 @@ ssh_url, port = connection_string.strip("tcp://").split(":")
 print(f" * ngrok tunnel available, access with `ssh root@{ssh_url} -p{port}`")
 ```
 
-```
+```bash
 from flask import Flask, request
 from pyngrok import ngrok   # Colab 環境需要，本機環境不需要
 import json, time, requests
