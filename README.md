@@ -40,6 +40,7 @@
 本專案旨在開發一個智能寶寶監控系統。<br>
 目標利用影像辨識辨別寶寶狀態，同時抓取即時的溫濕度資訊進而做出相對應控制電器的動作。最後使用Line Bot應用程式回應用戶的訊息並使用AI提供建議。
 
+
 ### 控制燈泡開關 (這裡以11號燈泡為例-共6顆燈泡)
 ```bash
 import requests
@@ -71,6 +72,8 @@ def turn_11_off():
 response_text_off = turn_11_off()  # 關閉第 11 盞燈
 print(response_text_off)
 ```
+
+
 ### 函式
 **使用HuggingFace的模組進行影像辨識**
 1. 情緒判斷：
@@ -174,6 +177,7 @@ def checkFace(filename):
     else:
         return 0
 ```
+
 
 ### Server function 
 
@@ -284,6 +288,7 @@ except Exception as err:
   print(str(err))
 ```
 
+
 ### HW3 外部資訊 
 串聯外部API，獲得使用者的經緯度後，去抓當地的天氣資料，並根據溫度判斷是否要開冷氣
 ```bash
@@ -388,6 +393,8 @@ def store_data(api_key, lat, lon, sheet_id, img):
     # 將資料寫入 Google Sheets
     write_to_google_sheets(sheet_id, row_data)
 ```
+
+
 ### 儲存資料到Google sheet
 依據HuggingFace回傳的判斷結果及openweathermap抓到溫度和濕度資訊做出相對應的動作<br>
 並將資料寫入Google sheet
@@ -437,6 +444,7 @@ def start():
 start()
 ```
 
+
 ### HW4 Line bot
 連結到Google sheet讀取資料，並將結果傳送給AI，讓AI依據寶寶狀態給出建議 (LLM)
 ```bash
@@ -478,6 +486,7 @@ def getAdvice():
           last_non_empty_row = row[8]
   return last_non_empty_row
 ```
+
 輸入授權資料來連結Line bot
 ```bash
 from google.colab import drive
@@ -490,6 +499,7 @@ drive.mount('/content/drive', force_remount=True)
 !mkdir -p ~/.ssh
 ```
 
+確認金鑰是否正確
 ```bash
 import getpass
 
@@ -504,6 +514,7 @@ connection_string = ngrok.connect("22", "tcp").public_url
 ssh_url, port = connection_string.strip("tcp://").split(":")
 print(f" * ngrok tunnel available, access with `ssh root@{ssh_url} -p{port}`")
 ```
+
 進行驗證<br>
 若驗證成功，會**把資訊(包含寶寶狀態及AI建議)傳送至使用者的手機**
 ```bash
