@@ -38,7 +38,7 @@
 專題連結 (完整程式碼)：[ds_LLM_babyboss](https://colab.research.google.com/drive/1BF-IPPRmj68i8540-3rY8B-4iQWJ2vdc#scrollTo=z93fyaqfsxoL)
 
 本專案旨在開發一個智能寶寶監控系統。<br>
-目標利用影像辨識辨別寶寶狀態，同時抓取即時的溫濕度資訊並做出相對應控制電器的動作。最後使用Line Bot應用程式回應用戶的訊息並使用AI提供建議。
+目標利用影像辨識辨別寶寶狀態，同時抓取即時的溫濕度資訊進而做出相對應控制電器的動作。最後使用Line Bot應用程式回應用戶的訊息並使用AI提供建議。
 
 ### 控制燈泡開關 (這裡以11號燈泡為例-共6顆燈泡)
 ```bash
@@ -72,7 +72,7 @@ response_text_off = turn_11_off()  # 關閉第 11 盞燈
 print(response_text_off)
 ```
 ### 函式
-
+**使用HuggingFace的模組進行影像辨識**
 1. 情緒判斷：
 ```bash  
 API_URL_1 = "https://api-inference.huggingface.co/models/trpakov/vit-face-expression"
@@ -133,7 +133,7 @@ def LLM(payload):
 # https://huggingface.co/meta-llama/Meta-Llama-3-8B-Instruct LLM使用的模組
 ```
 
-5. 定義判斷後的結果
+**定義判斷後的結果**
 ```bash
 def checkCry(filename):
     emotion_probabilities = sad(filename)
@@ -215,7 +215,7 @@ def bbox_to_bytes(bbox_array):
   return bbox_bytes
 ```
 
-2.
+2. 儲存拍攝照片
 ```bash
 face_cascade = cv2.CascadeClassifier(cv2.samples.findFile(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'))
 def take_photo(filename='photo.jpg', quality=0.8):
@@ -270,7 +270,7 @@ def take_photo(filename='photo.jpg', quality=0.8):
   return filename
 ```
 
-3.儲存拍攝照片
+3. 設定讀取照片的路徑
 ```bash
 try:
   filename = take_photo('photo.jpg')
@@ -388,8 +388,9 @@ def store_data(api_key, lat, lon, sheet_id, img):
     # 將資料寫入 Google Sheets
     write_to_google_sheets(sheet_id, row_data)
 ```
-
-依據HuggingFace回傳的判斷結果及openweathermap抓到溫度和濕度資訊做出相對應的動作
+### 儲存資料到Google sheet
+依據HuggingFace回傳的判斷結果及openweathermap抓到溫度和濕度資訊做出相對應的動作<br>
+並將資料寫入Google sheet
 ```bash
 import time
 
@@ -431,12 +432,13 @@ def start():
           break
 ```
 
-執行程式
+**執行程式**
 ```bash
 start()
 ```
 
 ### HW4 Line bot
+連結到Google sheet讀取資料，並將結果傳送給AI，讓AI依據寶寶狀態給出建議 (LLM)
 ```bash
 import gspread
 from google.oauth2.service_account import Credentials
@@ -476,6 +478,7 @@ def getAdvice():
           last_non_empty_row = row[8]
   return last_non_empty_row
 ```
+輸入授權資料來連結Line bot
 ```bash
 from google.colab import drive
 drive.mount('/content/drive', force_remount=True)
@@ -501,7 +504,8 @@ connection_string = ngrok.connect("22", "tcp").public_url
 ssh_url, port = connection_string.strip("tcp://").split(":")
 print(f" * ngrok tunnel available, access with `ssh root@{ssh_url} -p{port}`")
 ```
-
+進行驗證<br>
+若驗證成功，會**把資訊(包含寶寶狀態及AI建議)傳送至使用者的手機**
 ```bash
 from flask import Flask, request
 from pyngrok import ngrok   # Colab 環境需要，本機環境不需要
@@ -558,7 +562,8 @@ if __name__ == "__main__":
 
 此專案採用 MIT 授權條款。詳見 [LICENSE](LICENSE) 文件。
 
-### 聯絡作者
+
+### 小組成員
 
 - [溫苡含](https://github.com/sophieuen2003/DS)
 - [林元方](https://github.com/Duckucy/112-2-Data-Structure)
